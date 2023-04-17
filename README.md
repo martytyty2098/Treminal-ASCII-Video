@@ -29,3 +29,4 @@ videofile.mp4 (any other extension is also valid)
 - The shortcut to your desktop (`-d`) often doesnt work
 - .dll files in `bin1.zip` and `bin2.zip` are kinda bulky
 - FPS suddenly drops when there is a lot of motion and many different colors, and i dont know why
+- My code is bad and unreadable
