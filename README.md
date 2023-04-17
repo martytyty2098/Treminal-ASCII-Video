@@ -1,3 +1,4 @@
+![GitHub](https://img.shields.io/github/license/hunar4321/life_code)
 # Terminal ASCII Video
 The C++ program that takes a video file and plays it in your terminal with grayscale ASCII characters\
 This program is built on pure C++ with the help of OpenCV library.
