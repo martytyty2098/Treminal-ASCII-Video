@@ -10,7 +10,9 @@ _The size limit on github is kinda low, so i split the files into different zip 
 
 - Follow displayed instructions
 
-**`COOL THING`**: the console window is fully resizable during real time video generation, but note that the larger the window, the slower the video playback, because more characters need to be rendered
+**`COOL THINGS`**
+- The console window is fully resizable during real time video playback, but note that larger window size can result in a decrease in FPS, because more characters need to be rendered.
+- The program supports all types of fonts, so you can set a small font to increase the resolution of the ASCII video, but too small a font can result in a decrease in FPS, as more characters must be displayed on the console screen.
 # A shortcut
 if you want to access a video on your desktop, instead of typing the full desktop path like:
 ```
@@ -29,5 +31,5 @@ videofile.mp4 (any other extension is also valid)
 - The file path to the video passed to the program must be in english characters
 - The shortcut to your desktop (`-d`) often doesnt work
 - .dll files in `bin1.zip` and `bin2.zip` are kinda bulky
-- FPS suddenly drops when there is a lot of motion and many different colors, and i dont know why
+- FPS suddenly drops when there is a lot of motion and many different colors, and i dont know why.
 - My code is bad and unreadable
