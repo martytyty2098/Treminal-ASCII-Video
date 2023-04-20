@@ -2,14 +2,13 @@
 #include <opencv2/core/utils/logger.hpp>
 #include <iostream>
 #include <windows.h>
-#include <math.h>
 #include <string>
 #include <lmcons.h>
 #include <cwchar>
 #include <limits>
 
 // ASCII characters from darkest to brightest
-const std::string chars = " `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
+const static std::string chars = " `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@";
 const int CharsAmount = int(chars.length()) - 1;
 
 #define LIGHT_GRAY 7
@@ -18,7 +17,7 @@ const int CharsAmount = int(chars.length()) - 1;
 
 // an array that stores the precomputed brightness value for each possible RGB value
 // i know its not memory efficient because its about 67 megabytes, but at least 
-// the program doesn't have to do expensive floating point calculations during video generation
+// the program doesn't have to do expensive floating point calculations during video playback
 float brightnessLookup[256 * 256 * 256];
 
 // Rec. 601 standard
@@ -33,11 +32,6 @@ constexpr float WeightB = 0.114f;
 // The darkest is 0 and the brightest is 1
 #define FindBrightness(r, g, b) ((r / 255.0f * WeightR) + (g / 255.0f * WeightG) + (b / 255.0f * WeightB))
 
-struct COORD_32 {
-    int X;
-    int Y;
-};
-
 // Console window size in characters
 // Each character has 16 pixels in height and 8 pixels in width by default (in "Consolas" font)
 void GetWindowSize(HANDLE OutputBufferHandle, int& width_out, int& height_out)
@@ -48,52 +42,29 @@ void GetWindowSize(HANDLE OutputBufferHandle, int& width_out, int& height_out)
     height_out = OutputBufferInfo.srWindow.Bottom - OutputBufferInfo.srWindow.Top + 1;
 }
 
-void FindAverageBrightness(const cv::Mat& image, CHAR_INFO& char_out, COORD_32 ChunkOrigin, int ChunkWidth, int ChunkHeight)
-{
-    float AvgBrightness = 0.0f;
-    
-    for (int yPix = ChunkOrigin.Y; yPix < ChunkOrigin.Y + ChunkHeight; ++yPix)
-    {
-        for (int xPix = ChunkOrigin.X; xPix < ChunkOrigin.X + ChunkWidth; ++xPix)
-        {
-            const unsigned char* CurrentPix = image.ptr<unsigned char>(yPix) + 3 * xPix;
-            unsigned int color = 
-                (unsigned int(CurrentPix[R]) << 16) |
-                (unsigned int(CurrentPix[G]) << 8) |
-                 unsigned int(CurrentPix[B]); // combine RGB value into a single integer
-            AvgBrightness += brightnessLookup[color];
-        }
-    }
-
-    AvgBrightness /= ChunkWidth * ChunkHeight;
-    if (AvgBrightness <= 0.33f) char_out.Attributes = GRAY;
-    else if (AvgBrightness <= 0.66f) char_out.Attributes = LIGHT_GRAY;
-    else char_out.Attributes = WHITE;
-
-    char_out.Char.AsciiChar = chars[int(CharsAmount * AvgBrightness)];
-}
-
-// this function breaks down the source video into chunks and processes each chunk
-// then it fills a given array of characters with the results of processing each chunk
-// the the total amount of chunks is always WinWidth * WinHeight
 void LoadImageToBuffer(cv::Mat& SourceImage, CHAR_INFO* DestBuffer, int WinWidth, int WinHeight)
 {
-    const float ChunkWidth = SourceImage.cols / float(WinWidth);
-    const float ChunkHeight = SourceImage.rows / float(WinHeight);
+    if (WinWidth < 1 || WinHeight < 1) return;
 
-    // fills an array of characters with the results of processing each chunk
+    // shrink the frame to the size of the console window
+    cv::resize(SourceImage, SourceImage, cv::Size(WinWidth, WinHeight), 0.0, 0.0, cv::INTER_NEAREST);
+    
     for (int y = 0; y < WinHeight; ++y)
     {
         for (int x = 0; x < WinWidth; ++x)
         {
-            FindAverageBrightness
-            (
-                SourceImage,
-                DestBuffer[WinWidth * y + x],
-                { int(ChunkWidth * x), int(ChunkHeight * y) },
-                int(ceilf(ChunkWidth)),
-                int(ceilf(ChunkHeight))
-            );
+            const unsigned char* CurrentPix = SourceImage.ptr<unsigned char>(y) + 3 * x;
+            CHAR_INFO& CurrentChar = DestBuffer[WinWidth * y + x];
+            unsigned int combined_RGB = 
+                (unsigned int(CurrentPix[R]) << 16) |
+                (unsigned int(CurrentPix[G]) << 8) |
+                unsigned int(CurrentPix[B]);
+            float CurrentBrightness = brightnessLookup[combined_RGB];
+            CurrentChar.Char.AsciiChar = chars[int(CharsAmount * CurrentBrightness)];
+
+            if (CurrentBrightness <= 0.33f) CurrentChar.Attributes = GRAY;
+            else if (CurrentBrightness <= 0.66f) CurrentChar.Attributes = LIGHT_GRAY;
+            else CurrentChar.Attributes = WHITE;
         }
     }
 }
@@ -154,7 +125,7 @@ void RenderBuffer(CHAR_INFO* buffer, HANDLE ConsoleHandle, short win_width, shor
     WriteConsoleOutputA(ConsoleHandle, buffer, { win_width, win_height }, { 0, 0 }, &writeArea);
 }
 
-void ChangeConsoleTextSize(HANDLE ConsoleHandle, int new_width, int new_height, const wchar_t* font_name)
+void ChangeConsoleTextSize(HANDLE ConsoleHandle, int new_width, int new_height, const wchar_t* font_name = L"Consolas")
 {
     CONSOLE_FONT_INFOEX cfi = {};
     cfi.cbSize = sizeof(cfi);
@@ -171,10 +142,12 @@ void askResolution(HANDLE ConsoleHandle)
 {
     char resolution = 0;
 
-    std::cout << "\n\nSelect console window resolution :\n"
+    std::cout << "\n\nSelect console window resolution\n"
+        << "You can also select any font you want in your console window settings\n\n"
+        << "0 - Keep as is\n"
         << "1 - Best resolution (2x5 pixels in a charachter)\n"
-        << "2 - High resolution (4x6 pixels in a charachter)\n"
-        << "3 - Medium resolution (8x9 pixels in charachter)\n"
+        << "2 - High resolution (4x8 pixels in a charachter)\n"
+        << "3 - Medium resolution (6x12 pixels in charachter)\n"
         << "4 - Low resolution (8x16 pixels in charachter)\n\n"
         << "Enter the number of desired resolution : ";
 
@@ -190,17 +163,19 @@ void askResolution(HANDLE ConsoleHandle)
     for (bool passed = false; !passed; passed = true)
     {
         switch (resolution) {
+        case '0':
+            break;
         case '1':
-            ChangeConsoleTextSize(ConsoleHandle, 2, 5, L"Consolas");
+            ChangeConsoleTextSize(ConsoleHandle, 2, 5);
             break;
         case '2':
-            ChangeConsoleTextSize(ConsoleHandle, 4, 6, L"Terminal");
+            ChangeConsoleTextSize(ConsoleHandle, 4, 8);
             break;
         case '3':
-            ChangeConsoleTextSize(ConsoleHandle, 8, 9, L"Terminal");
+            ChangeConsoleTextSize(ConsoleHandle, 6, 12);
             break;
         case '4':
-            ChangeConsoleTextSize(ConsoleHandle, 8, 16, L"Consolas");
+            ChangeConsoleTextSize(ConsoleHandle, 8, 16);
             break;
         default:
             std::cout << "Bad input, try again : ";
@@ -246,7 +221,7 @@ int main(void)
 {
     HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
     ComputeBrightnessLookupTable();
-    ChangeConsoleTextSize(hConsole, 8, 16, L"Consolas");
+    ChangeConsoleTextSize(hConsole, 8, 16);
     cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
 
     std::string video_path = askVideoPath();
@@ -254,11 +229,21 @@ int main(void)
 
     std::cout << "Opening video at " << video_path << '\n';
 
+    // Console window size in characters
+    int win_width;
+    int win_height;
+    GetWindowSize(hConsole, win_width, win_height);
+
+    // clear screen
+    DWORD charsWritten;
+    FillConsoleOutputCharacterA(hConsole, (TCHAR)' ', win_width * win_height, { 0, 0 }, &charsWritten);
+    SetConsoleCursorPosition(hConsole, { 0, 0 });
+
     cv::VideoCapture SourceVideo(video_path);
 
     if (!SourceVideo.isOpened())
     {
-        std::cout << "\nThe video at " << video_path << " was not found.\n";
+        std::cout << "The video at " << video_path << " was not found.\n";
         std::cout << "This address is probably invalid or the file extension is not supported\n";
         std::cout << "\nPress Enter to exit . . . ";
         std::cin.get();
@@ -269,14 +254,15 @@ int main(void)
     double original_fps = SourceVideo.get(cv::CAP_PROP_FPS);
     if (original_fps <= 0.0000001 || frame_amount <= 0) {
         std::cout 
-            << "\n\nThere was an error with this particular video, please try another one"
+            << "There was an error with this particular video, please try another one"
             << "\nPress Enter to exit . . . ";
         std::cin.get();
     }
 
     std::cout
-        << "\nVideo path - " << video_path
-        << "\n\nOriginal frame rate of the video - " << original_fps;
+        << "Video path - " << video_path
+        << "\n\nOriginal frame rate of the video - " << original_fps
+        << "\nOriginal resolution of the video - " << SourceVideo.get(cv::CAP_PROP_FRAME_WIDTH) << " x " << SourceVideo.get(cv::CAP_PROP_FRAME_HEIGHT);
 
     int overall_sec = int(frame_amount / original_fps);
     int overall_min = overall_sec / 60;
@@ -290,10 +276,6 @@ int main(void)
         << (sec < 10 ? '0' : '\0') << sec;
 
     askResolution(hConsole);
-
-    // Console window size in characters
-    int win_width;
-    int win_height;
 
     LARGE_INTEGER frame_end_time;
     LARGE_INTEGER frame_begin_time;
@@ -344,7 +326,7 @@ int main(void)
         DeltaTime_counter -= DeltaTime;
 
         // prevents the program from running faster than the original video
-        if (DeltaTime_counter <= 0.0)
+        if (DeltaTime_counter < 0.0)
         {
             // prevents the program from running slower than the original video
             int leftover_frames = int(fabs(DeltaTime_counter) / expected_DeltaTime);
@@ -369,10 +351,9 @@ int main(void)
     }
     
     // clear screen
-    DWORD charsWritten;
     FillConsoleOutputCharacterA(hConsole, (TCHAR)' ', win_width * win_height, { 0, 0 }, &charsWritten);
 
-    ChangeConsoleTextSize(hConsole, 8, 16, L"Consolas");
+    ChangeConsoleTextSize(hConsole, 8, 16);
     std::cout << "The video was played successfully\n\nPress Enter to exit . . . ";;
 
     std::cin.get();
