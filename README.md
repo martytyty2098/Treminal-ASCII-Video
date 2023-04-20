@@ -9,6 +9,7 @@ _The size limit on github is kinda low, so i split the files into different zip 
 <img width="523" alt="Screenshot_1" src="https://user-images.githubusercontent.com/108870368/232514678-c9d7df83-4f79-429a-bdc3-889626971b04.png">
 
 - Follow displayed instructions
+- You can also try this program with videos inside of `TestVideos.zip` **(Bad Apple there)**
 
 **`COOL THINGS`**
 - The console window is fully resizable during real time video playback, but note that larger window size can result in a decrease in FPS, because more characters need to be rendered.
