@@ -30,6 +30,7 @@ videofile.mp4 (any other extension is also valid)
 - This program only works on Windows
 - The file path to the video passed to the program must be in english characters
 - The shortcut to your desktop (`-d`) often doesnt work
+- The higher the resolution of the original video, the lower the FPS, because it takes more time to shrink each frame to the size of the console window
 - .dll files in `bin1.zip` and `bin2.zip` are kinda bulky
 - FPS suddenly drops when there is a lot of motion and many different colors, and i dont know why.
 - My code is bad and unreadable
